@@ -156,7 +156,7 @@ EOF
         echo_out "Account-ID not found"
       fi
     fi
-   # echo_out $role_input, $account_id
+    echo_out $role_input, $account_id
   fi
 
   # Validate Account ID
@@ -226,9 +226,9 @@ EOF
       echo_out "Using MFA-Key $YUBIKEY_MFA"
 		export OKTA_MFA_CODE
 	  fi
-     gimme-aws-creds 
+    gimme-aws-creds
 
-     ROLE_SESSION_ARGS=(--role-arn "${role_arn}")
+    ROLE_SESSION_ARGS=(--role-arn "${role_arn}")
 	  ROLE_SESSION_ARGS+=(--profile "${source_profile_config}")
 	  ROLE_SESSION_ARGS+=(--duration-seconds "${ROLE_SESSION_TIMEOUT}")
 	  ROLE_SESSION_ARGS+=(--role-session-name "${user_clean}")
@@ -247,7 +247,8 @@ EOF
     	export AWS_ACCOUNT_ROLE="$role"
     	export GEO_ENV="$account_name" # For GeoEngineer https://github.com/coinbase/geoengineer
     	export AWS_STS_ROLE_ARN="$role_arn"
-    	echo "${GREEN}\uf65f switched role${NC}"
+    	echo_out "Swichted role"
+      #echo "${GREEN}\uf65f switched role${NC}"
 	  fi
 
   else
@@ -261,8 +262,8 @@ EOF
     export AWS_ACCOUNT_ROLE="$role"
     export GEO_ENV="$account_name" # For GeoEngineer https://github.com/coinbase/geoengineer
     export AWS_STS_ROLE_ARN="$role_arn"
-    # echo_out "Success! IAM session envars are exported."
-    echo "${GREEN}\uf65f switched role${NC}"
+    echo_out "Success! IAM session envars are exported."
+    #echo "${GREEN}\uf65f switched role${NC}"
   fi
 
   # Switch to EKS Cluster
@@ -283,7 +284,7 @@ EOF
       elif [ 1 -le "$REPLY" ] && [ "$REPLY" -le $((arrsize)) ];
       then
         # echo "You selected $option which is option $REPLY"
-        echo_out "\ufd31 Switch to $option"
+        echo_out "Switch to $option"
         export KUBECONFIG="$HOME/.kube/$AWS_ACCOUNT_ID-$option"
         aws eks update-kubeconfig --name $option --alias $option
         chmod 0600 $KUBECONFIG
@@ -295,7 +296,7 @@ EOF
   }
 
   if [ ${#cluster_array[@]} -eq 1 ]; then
-    echo_out "\ufd31 Switch to $eks_clusters"
+    echo_out "Switch to $eks_clusters"
     export KUBECONFIG="$HOME/.kube/$AWS_ACCOUNT_ID-$eks_clusters"
     aws eks update-kubeconfig --name $eks_clusters --alias $eks_clusters
     chmod 0600 $KUBECONFIG
@@ -329,17 +330,15 @@ EOF
   fi
 
   # USED FOR TESTING AND DEBUGGING
-  if [ "$DEBUG_ASSUME_ROLE" = "true" ]; then
-    echo "AWS_CONFIG_REGION=\"$AWS_CONFIG_REGION\";"
-    echo "SESSION_ARGS=\"${SESSION_ARGS[*]}\";"
-    echo "SESSION=\"$SESSION\";"
-    echo "ROLE_SESSION_ARGS=\"${ROLE_SESSION_ARGS[*]}\";"
-    echo "ROLE_SESSION=\"$ROLE_SESSION\";"
-    echo "SESSION_TIMEOUT=\"$SESSION_TIMEOUT\";"
-    echo "ROLE_SESSION_TIMEOUT=\"$ROLE_SESSION_TIMEOUT\";"
-    echo "AWS_PROFILE_ASSUME_ROLE=\"$AWS_PROFILE_ASSUME_ROLE\";"
-    echo "AWS_STS_ROLE_ARN=\"$role_arn\";"
-  fi
+  echo "AWS_CONFIG_REGION=\"$AWS_CONFIG_REGION\";"
+  echo "SESSION_ARGS=\"${SESSION_ARGS[*]}\";"
+  echo "SESSION=\"$SESSION\";"
+  echo "ROLE_SESSION_ARGS=\"${ROLE_SESSION_ARGS[*]}\";"
+  echo "ROLE_SESSION=\"$ROLE_SESSION\";"
+  echo "SESSION_TIMEOUT=\"$SESSION_TIMEOUT\";"
+  echo "ROLE_SESSION_TIMEOUT=\"$ROLE_SESSION_TIMEOUT\";"
+  echo "AWS_PROFILE_ASSUME_ROLE=\"$AWS_PROFILE_ASSUME_ROLE\";"
+  echo "AWS_STS_ROLE_ARN=\"$role_arn\";"
 }
 
 # from https://stackoverflow.com/questions/2683279/how-to-detect-if-a-script-is-being-sourced
@@ -354,7 +353,7 @@ elif [[ "init" == "${1}" ]]; then
 else
   # The script is being called directly
   # Supports calling being called like eval $(assume-role-okta account role [token])
-  set -eo pipefail
+  #set -eo pipefail
   OUTPUT_TO_EVAL="true"
   assume-role-okta "$@";
 fi
