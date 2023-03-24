@@ -28,4 +28,5 @@ cp -R $ASSR/bin/.aws $HOME
 cd $WS && . assume-role/assume-role-okta
 echo "TODO: run in $WS: . assume-role/assume-role-okta"
 echo "TODO: update your okta_username in file ~/.okta_aws_login_config to your <email>@bertelsmann.de"
-echo "start with 'assume-role-okta canda-dev'"
+echo "start with: assume-role-okta canda-dev"
+echo "then: kubectl get pods --namespace=canda"
