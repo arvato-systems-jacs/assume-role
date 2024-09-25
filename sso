@@ -1,0 +1,112 @@
+#!/bin/bash
+set +m
+sso() {
+  for tools in "jq" "aws" "yq"; do
+    if ! hash $tools 2>/dev/null; then
+      echo "sso requires '$tools' to be installed"
+      return
+    fi
+  done
+  
+  if [[ -z ${1} ]]; then
+    if [[ -z $AWS_PROFILE ]]; then
+      echo "Usage: sso <profile>"
+      return 1
+    else
+      echo "Using previous profile $AWS_PROFILE in absence of a profile argument"
+      export AWS_PROFILE="$AWS_PROFILE"
+    fi
+  else
+    export AWS_PROFILE="${1}"
+  fi
+
+  unset AWS_REGION
+  unset AWS_DEFAULT_REGION
+  unset AWS_ACCESS_KEY_ID
+  unset AWS_SECRET_ACCESS_KEY
+  unset AWS_SESSION_TOKEN
+  unset AWS_SECURITY_TOKEN
+  unset KUBECONFIG
+  unset AWS_ACCOUNT_ID
+  unset AWS_ACCOUNT_ROLE
+  unset AWS_ACCOUNT_NAME
+  unset AWS_ROLE_NAME
+  unset AWS_SESSION_START
+  unset PREVIOUS_CONTEXT
+
+  export AWS_ROLE_SESSION_NAME="$USER"
+  
+  if [[ -z $AWS_PROFILE ]]; then
+    echo "Usage: sso <profile>"
+    return 1
+  fi
+  (set -e; cat ~/.aws/config | grep -F "[profile $AWS_PROFILE]" > /dev/null 2>/dev/null)
+  if [[ $? -ne 0 ]]; then
+    echo "Profile $AWS_PROFILE doesn't seem to exist"
+    return 1
+  fi
+  export AWS_PAGER="cat"
+  export AWS_REGION=$(aws configure get region --profile ${AWS_PROFILE}) # TODO Validate it has one?
+  export AWS_DEFAULT_REGION=$AWS_REGION
+  export KUBECONFIG="$HOME/.kube/$AWS_PROFILE"
+  if [[ -f $KUBECONFIG ]]; then
+    PREVIOUS_CONTEXT=$(cat $KUBECONFIG | yq '.current-context')
+  fi
+  rm -f $KUBECONFIG
+  touch $KUBECONFIG
+  # SSO check Login or relogin
+  (set -e; aws sts get-caller-identity > /dev/null 2>/dev/null)
+  if [[ $? -ne 0 ]]; then
+    echo " Logging into SSO"
+    SOURCE_PROFILE_TMP=$(aws configure get source_profile --profile ${AWS_PROFILE})
+    if [[ -z $SOURCE_PROFILE_TMP ]]; then
+      SOURCE_PROFILE=$AWS_PROFILE
+    else
+      SOURCE_PROFILE=$SOURCE_PROFILE_TMP
+    fi
+    aws sso login --profile ${SOURCE_PROFILE}
+  else
+    echo " Already logged into SSO"
+  fi
+  # EKS
+  echo "󱃾 Looking up Kubernetes clusters"
+  for REGION in `aws --output json --region eu-central-1 ec2 describe-regions --filters Name=opt-in-status,Values=opt-in-not-required,opted-in | jq --raw-output -c '.Regions[].RegionName'`
+  do
+    eks_regional_generate &
+  done
+  chmod 0600 $KUBECONFIG
+  wait
+  if [[ ! -z $PREVIOUS_CONTEXT && $PREVIOUS_CONTEXT != "null" ]]; then
+    echo "󱃾 Switching back to previously set EKS context $PREVIOUS_CONTEXT"
+    yq -i ".current-context = \"$PREVIOUS_CONTEXT\"" $KUBECONFIG
+    unset PREVIOUS_CONTEXT
+  elif [[ $(cat $KUBECONFIG | yq '.clusters | length') -gt 1 ]]; then
+    echo "󱃾 No previous context set and multiple EKS found, unsetting context"
+    yq -i 'del(.current-context)' $KUBECONFIG
+  fi
+}
+
+eks_regional_generate() {
+  for CLUSTER in $(aws --output json --region $REGION eks list-clusters --query 'clusters[*]' --output json | jq --raw-output -c '.[]')
+  do
+    echo "Found: Region $REGION Cluster $CLUSTER"
+    aws --output json --region $REGION eks update-kubeconfig --name $CLUSTER --profile $AWS_PROFILE --alias $CLUSTER &
+  done
+  wait
+}
+
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+  # If the script is being sourced, do nothing
+  # Supports `source $(which assume_role)` in rc file for bash and zsh
+  : # noop
+elif [[ "init" == "${1}" ]]; then
+  # TODO: This will be multi-shell support like rbenv, e.g. fish
+  # Supports `eval "$(assume-role-okta init -)"` in rc file
+  echo "Currently not supported"
+else
+  # The script is being called directly
+  # Supports calling being called like eval $(assume-role-okta account role [token])
+  set -eo pipefail
+  OUTPUT_TO_EVAL="true"
+  sso "$@";
+fi
